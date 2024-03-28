@@ -1,7 +1,7 @@
-﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
+﻿using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
+using StardewModdingAPI.Framework.Input;
 using StardewValley;
 using StardewValley.Menus;
 
@@ -9,10 +9,15 @@ namespace VirtualKeyboard
 {
     public class ModEntry : Mod
     {
+        public static ModEntry Instance { get; private set; }
         List<KeyButton> keyButtons = new();
-        bool isToggle = false;
+        bool isShowKeys = false;
+        KeyButton keyboardToggleButton;
+        bool isEnableKeyboard = false;
+        KeyboardPage keyboardPage;
         public override void Entry(IModHelper helper)
         {
+            Instance = this;
             var toggleTexture = Helper.ModContent.Load<Texture2D>("assets/togglebutton.png");
             Helper.Events.Display.Rendered += OnRendered;
             Helper.Events.Display.MenuChanged += OnMenuChanged;
@@ -21,52 +26,34 @@ namespace VirtualKeyboard
             Helper.Events.GameLoop.GameLaunched += GameLoop_GameLaunched;
 
         }
-
-        private void OnButtonReleased(object? sender, ButtonReleasedEventArgs e)
-        {
-            var screenPixels = Utility.ModifyCoordinatesForUIScale(e.Cursor.ScreenPixels);
-            foreach (var btn in keyButtons)
-            {
-                var clicked = btn.bounds.Contains(screenPixels);
-                if (!clicked) continue;
-                btn.releaseLeftClick((int)screenPixels.X, (int)screenPixels.Y);
-                break;
-            }
-        }
-
         private void GameLoop_GameLaunched(object? sender, GameLaunchedEventArgs e)
         {
             var toolPading = Game1.toolbarPaddingX;
-            AddButton("Keyboard", OnClick_Keyboard);
-            AddButton("P", OnClick_P);
-            AddButton("X", OnClick_X);
+            keyboardToggleButton = AddButton("Keyboard", OnClick_Keyboard);
+            ToggleKeys(false);
+
+            AddButton("I", OnClick_I);
         }
 
-        private void OnClick_X()
+        private void OnClick_I()
         {
-        }
+            //disable Active Clickable Menu first
+            //mod CJB Item Spawner need IsPlayerFree == true;
+            EnableKeyboard(false);
 
-        private void OnClick_P()
-        {
+            var input = Game1.input as SInputState;
+            input.OverrideButton(SButton.I, true);
         }
-
-        private void OnClick_Keyboard()
-        {
-            isToggle = !isToggle;
-        }
-        KeyButton AddButton(string label, Action callback, Vector2 pos)
-        {
-            var keyButton = new KeyButton(label, callback, (int)pos.X, (int)pos.Y);
-            keyButtons.Add(keyButton);
-            return keyButton;
-        }
-        KeyButton AddButton(string label, Action callback) => AddButton(label, callback, new Vector2(-1, -1));
-
         private void OnButtonPressed(object? sender, ButtonPressedEventArgs e)
         {
+            //process when Button is Mouse
+            if (e.Button != SButton.MouseLeft) return;
+
             var screenPixels = Utility.ModifyCoordinatesForUIScale(e.Cursor.ScreenPixels);
             foreach (var btn in keyButtons)
             {
+                if (!btn.enabled) continue;
+
                 var clicked = btn.bounds.Contains(screenPixels);
                 if (!clicked) continue;
 
@@ -74,29 +61,114 @@ namespace VirtualKeyboard
                 break;
             }
         }
+        private void OnButtonReleased(object? sender, ButtonReleasedEventArgs e)
+        {
+            if (e.Button != SButton.MouseLeft) return;
 
+            var screenPixels = Utility.ModifyCoordinatesForUIScale(e.Cursor.ScreenPixels);
+            foreach (var btn in keyButtons)
+            {
+                if (!btn.enabled) continue;
+
+                var clicked = btn.bounds.Contains(screenPixels);
+                if (!clicked) continue;
+
+                btn.releaseLeftClick((int)screenPixels.X, (int)screenPixels.Y);
+                break;
+            }
+        }
         private void OnMenuChanged(object? sender, MenuChangedEventArgs e)
         {
         }
-
         private void OnRendered(object? sender, RenderedEventArgs e)
         {
-            var lastPosX = Toolbar.toolbarWidth;
-            var buttonGap = 20;
+            if (!Context.IsPlayerFree && Game1.activeClickableMenu != keyboardPage)
+            {
+                if (isEnableKeyboard)
+                    EnableKeyboard(false);
+                return;
+            }
+            else
+            {
+                if (!isEnableKeyboard) EnableKeyboard(true);
+            }
+
+            const int buttonGap = 20;
+            var startWidth = Toolbar.toolbarWidth;
+            var lastPosX = startWidth;
+            var lastPosY = 0;
             foreach (var button in keyButtons)
             {
-                if (isToggle == false && button.label != "Keyboard")
-                {
+                if (!button.enabled)
                     continue;
-                }
 
-                //final render
-                //adjust pos
                 button.bounds.X = lastPosX;
-                button.draw(e.SpriteBatch, 0, 0);
-                //next
+                button.bounds.Y = lastPosY;
+                button.Draw(e.SpriteBatch);
                 lastPosX += button.bounds.Width + buttonGap;
+
+                if (button == keyboardToggleButton)
+                {
+                    lastPosY = keyboardToggleButton.bounds.Height + buttonGap;
+                    lastPosX = startWidth;
+                }
             }
+        }
+        private void OnClick_Keyboard()
+        {
+            ToggleKeys(!isShowKeys);
+        }
+        IClickableMenu oldClickableMenu;
+        public void EnableKeyboard(bool enable = true)
+        {
+            isEnableKeyboard = enable;
+            //reset init
+            ToggleKeys(false);
+            ToggleKeyboardPage(false);
+            keyboardToggleButton.enabled = enable;
+        }
+        void ToggleKeyboardPage(bool toggle)
+        {
+            if (toggle)
+            {
+                keyboardPage = new KeyboardPage();
+                keyboardPage.behaviorBeforeCleanup = OnCloseKeyboardPage;
+                oldClickableMenu = Game1.activeClickableMenu;
+                Game1.activeClickableMenu = keyboardPage;
+            }
+            else
+            {
+                if (Game1.activeClickableMenu == keyboardPage)
+                {
+                    keyboardPage = null;
+                    Game1.activeClickableMenu = oldClickableMenu;
+                }
+            }
+
+        }
+        public void ToggleKeys(bool toggle)
+        {
+            this.isShowKeys = toggle;
+            keyboardToggleButton.opacity = isShowKeys ? 1f : 0.3f;
+            foreach (var button in keyButtons)
+            {
+                if (button != keyboardToggleButton)
+                {
+                    button.enabled = isShowKeys;
+                }
+            }
+
+            ToggleKeyboardPage(toggle);
+        }
+        KeyButton AddButton(string label, Action callback)
+        {
+            var keyButton = new KeyButton(label, callback);
+            keyButtons.Add(keyButton);
+            return keyButton;
+        }
+        void OnCloseKeyboardPage(IClickableMenu menu)
+        {
+            ToggleKeyboardPage(false);
         }
     }
 }
