@@ -14,4 +14,10 @@
     <Folder Include="assets\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>..\..\0Harmony.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>

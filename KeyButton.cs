@@ -1,5 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
 using System.Reflection;
@@ -12,22 +13,31 @@ namespace VirtualKeyboard
         public bool isHeldDown => (bool)isHeldDownField.GetValue(this);
         public Color color = Color.White;
         public float opacity = 1f;
-        public KeyButton(string label, Action callback, int x = -1, int y = -1) : base(label, callback, x, y)
+        public SButton key;
+        public Action<KeyButton> onKeyDown;
+        public Action<KeyButton> onKeyUp;
+        public KeyButton(SButton key, string label, Action<KeyButton> onKeyDown) : base(label, null, -1, -1)
         {
+            this.key = key;
+            this.onKeyDown = onKeyDown;
             isHeldDownField = typeof(OptionsButton).GetField("isHeldDown", BindingFlags.Instance | BindingFlags.NonPublic);
         }
+
         public override void receiveLeftClick(int x, int y)
         {
-            if (!enabled) return;
-
             base.receiveLeftClick(x, y);
-            ModEntry.Instance.Monitor.Log($"on key down KeyButton: {label}", StardewModdingAPI.LogLevel.Debug);
+            if (enabled && bounds.Contains(x, y))
+            {
+                onKeyDown?.Invoke(this);
+            }
         }
         public override void releaseLeftClick(int x, int y)
         {
-            if (!enabled) return;
             base.releaseLeftClick(x, y);
-            ModEntry.Instance.Monitor.Log($"on key up KeyButton: {label}", StardewModdingAPI.LogLevel.Debug);
+            if (enabled && bounds.Contains(x, y))
+            {
+                onKeyUp?.Invoke(this);
+            }
         }
         public void Draw(SpriteBatch batch)
         {
