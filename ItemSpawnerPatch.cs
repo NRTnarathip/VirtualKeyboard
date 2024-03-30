@@ -30,13 +30,17 @@ namespace VirtualKeyboard
 
             ModEntry.Instance.Helper.Events.Display.Rendered += OnRendered;
 
-            var CJBItemSpawner = AppDomain.CurrentDomain.GetAssemblies().Single(asm => asm.GetName().Name.Contains("CJBItemSpawner"));
+            var CJBItemSpawner = AppDomain.CurrentDomain.GetAssemblies().SingleOrDefault(asm => asm.GetName().Name.Contains("CJBItemSpawner"));
+            //check if you have mods
+            if (CJBItemSpawner == null) return;
+
             var ItemMenuWithInventoryType = CJBItemSpawner.GetType("CJBItemSpawner.Framework.ItemMenu");
             var ctor = ItemMenuWithInventoryType.GetConstructors()[0];
 
             harmony.Patch(ctor,
                 prefix: new(GetType().GetMethod(nameof(PrefixCtor), BindingFlags.NonPublic | BindingFlags.Static)),
                 postfix: new(GetType().GetMethod(nameof(PostfixCtor), BindingFlags.NonPublic | BindingFlags.Static)));
+            AndroidLog.Log("Done patching CJBItemSpawner.");
         }
         static Rectangle oldClientBounds;
         static xTile.Dimensions.Rectangle oldViewport;
