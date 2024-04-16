@@ -15,31 +15,42 @@ namespace VirtualKeyboard
         List<KeyButton> keys;
 
         bool isShowKeys = false;
-        KeyButton keyboardToggleButton;
+        KeyButton toggleKeyboardButton;
+        KeyboardConfig config;
         public override void Entry(IModHelper helper)
         {
             Instance = this;
             var toggleTexture = Helper.ModContent.Load<Texture2D>("assets/togglebutton.png");
             Helper.Events.Display.Rendered += OnRendered;
-            Helper.Events.Display.MenuChanged += OnMenuChanged;
+            Helper.Events.GameLoop.UpdateTicked += OnGameUpdateTicked;
             Helper.Events.Input.ButtonPressed += OnButtonPressed;
             Helper.Events.Input.ButtonReleased += OnButtonReleased;
             Helper.Events.GameLoop.GameLaunched += GameLoop_GameLaunched;
         }
+
+        private void OnGameUpdateTicked(object? sender, UpdateTickedEventArgs e)
+        {
+            if (isDontRenderThisFrame() == false)
+                refreshAllButtonPosition();
+        }
+
         void GameLoop_GameLaunched(object? sender, GameLaunchedEventArgs e)
         {
             var toolPading = Game1.toolbarPaddingX;
             keysLookup = new();
             keys = new();
 
-            keyboardToggleButton = AddButton(SButton.None, "Keyboard", OnKeyDown_Keyboard);
-            keyboardToggleButton.onKeyUp = OnKeyUp_Keyboard;
+            toggleKeyboardButton = AddButton("", "Keyboard", OnKeyDown_ToggleKeyboard, 0);
+            toggleKeyboardButton.onKeyUp = OnKeyUp_ToggleKeyboard;
+            toggleKeyboardButton.SetIcon("assets/togglebutton.png");
+            toggleKeyboardButton.opacityInOut = new(0f, 0f, .1f);
 
             //init keys
-            AddButton(SButton.I, "I", OnKeyButtonDown, 1);
-            AddButton(SButton.P, "P", OnKeyButtonDown, 1);
-            AddButton(SButton.None, "Console", OnKeyDown_Console, 2);
-            AddButton(SButton.None, "CMD", OnKeyDown_CMD, 2);
+            config = this.Helper.ReadConfig<KeyboardConfig>();
+            AddButtons(config.Layout1, 1);
+            AddButtons(config.Layout2, 2);
+            AddButtons(config.Layout3, 3);
+            refreshAllButtonPosition();
 
             //set visable keys
             ToggleKeys(false);
@@ -47,24 +58,29 @@ namespace VirtualKeyboard
 
             ItemSpawnerPatch.InitOnGameLaunched();
         }
+        void refreshAllButtonPosition()
+        {
+            const int buttonGapX = 20;
+            const int buttonGapY = 12;
+            var startX = Toolbar.toolbarWidth;
+            var startY = 20;
+            var lastPosY = startY;
+            foreach (var buttonLayoutPair in keysLookup)
+            {
+                var layoutHorizon = buttonLayoutPair.Key;
+                var buttons = buttonLayoutPair.Value;
+                var lastPosX = startX;
+                foreach (var button in buttonLayoutPair.Value)
+                {
+                    button.bounds.X = lastPosX;
+                    button.bounds.Y = lastPosY;
 
-        private void OnKeyDown_CMD(KeyButton button)
-        {
+                    lastPosX += button.bounds.Width + buttonGapX;
+                }
+                lastPosY += buttons[0].bounds.Height + buttonGapY;
+            }
         }
 
-        private void OnKeyDown_Console(KeyButton button)
-        {
-            SetKeyboardActive(false);
-            SendCommand("openconsole");
-        }
-        void SendCommand(string command)
-        {
-            SCore.Instance.RawCommandQueue.Add(command);
-        }
-
-        void OnMenuChanged(object? sender, MenuChangedEventArgs e)
-        {
-        }
         bool isDontRenderThisFrame()
         {
             //render alway
@@ -87,69 +103,94 @@ namespace VirtualKeyboard
             bool dontRender = !Context.IsPlayerFree && Game1.activeClickableMenu?.GetType() != typeof(KeyboardPage);
             return dontRender;
         }
+
+        DateTime lastRender = DateTime.Now;
         void OnRendered(object? sender, RenderedEventArgs e)
         {
+            var now = DateTime.Now;
+            var deltaTime = now - lastRender;
+            lastRender = now;
+
             if (isDontRenderThisFrame())
             {
-                if (keyboardToggleButton.enabled)
+                if (toggleKeyboardButton.enabled)
                     SetKeyboardActive(false);
                 return;
             }
             else
             {
-                if (!keyboardToggleButton.enabled)
+                if (!toggleKeyboardButton.enabled)
                     SetKeyboardActive(true);
             }
 
-            const int buttonGapX = 20;
-            const int buttonGapY = 12;
-            var startX = Toolbar.toolbarWidth;
-            var startY = 20;
-            int lastPosY = startY;
+
             foreach (var buttonLayoutPair in keysLookup)
             {
                 var layoutHorizon = buttonLayoutPair.Key;
                 var buttons = buttonLayoutPair.Value;
-                var lastPosX = startX;
                 foreach (var button in buttonLayoutPair.Value)
                 {
                     if (!button.enabled)
                         continue;
-
-                    button.bounds.X = lastPosX;
-                    button.bounds.Y = lastPosY;
-                    button.Draw(e.SpriteBatch);
-                    lastPosX += button.bounds.Width + buttonGapX;
+                    //update
+                    button.Draw(e.SpriteBatch, deltaTime);
                 }
-                lastPosY += buttons[0].bounds.Height + buttonGapY;
             }
         }
 
-        void OnKeyUp_Keyboard(KeyButton button)
+        void AddButtons(string[] keys, int layout)
         {
-            if (!isShowKeys)
+            foreach (var keyString in keys)
             {
+                var data = keyString.Split(":");
+                bool isCommand = data.Length > 1;
+                if (isCommand)
+                {
+                    AddButton(data[1], data[0], OnKeyDown_Command, layout);
+                }
+                else
+                {
+                    AddButton(keyString, keyString, OnKeyDown, layout);
+                }
+            }
+        }
+        void OnKeyUp_ToggleKeyboard(KeyButton button)
+        {
+            if (isShowKeys && !isShowKeysHold)
+            {
+                isShowKeysHold = false;
+                isShowKeys = false;
+                ToggleKeys(isShowKeys);
                 ToggleKeyboardPage(false);
             }
+            isShowKeysHold = false;
         }
-        void OnKeyDown_Keyboard(KeyButton keyButton)
+        bool isShowKeysHold = false;
+        void OnKeyDown_ToggleKeyboard(KeyButton keyButton)
         {
-            ToggleKeys(!isShowKeys);
-            ToggleKeyboardPage(true);
+            //open first frame click
+            if (isShowKeys == false)
+            {
+                isShowKeysHold = true;
+                isShowKeys = true;
+                ToggleKeys(isShowKeys);
+                ToggleKeyboardPage(true);
+            }
         }
-        void OnKeyButtonDown(KeyButton button)
+        void OnKeyDown(KeyButton button)
         {
             //disable Active Clickable Menu first
             //mod CJB Item Spawner need IsPlayerFree == true;
             SetKeyboardActive(false);
-
             var input = Game1.input as SInputState;
-            input.OverrideButton(button.key, true);
+            var sbutton = (SButton)Enum.Parse(typeof(SButton), button.key);
+            input.OverrideButton(sbutton, true);
         }
         void OnButtonPressed(object? sender, ButtonPressedEventArgs e)
         {
             //process when Button is Mouse
-            if (e.Button != SButton.MouseLeft) return;
+            if (e.Button != SButton.MouseLeft)
+                return;
 
             var screenPixels = Utility.ModifyCoordinatesForUIScale(e.Cursor.ScreenPixels);
             foreach (var btn in keys)
@@ -159,7 +200,8 @@ namespace VirtualKeyboard
         }
         void OnButtonReleased(object? sender, ButtonReleasedEventArgs e)
         {
-            if (e.Button != SButton.MouseLeft) return;
+            if (e.Button != SButton.MouseLeft)
+                return;
 
             var screenPixels = Utility.ModifyCoordinatesForUIScale(e.Cursor.ScreenPixels);
             foreach (var btn in keys)
@@ -167,18 +209,29 @@ namespace VirtualKeyboard
                 btn.releaseLeftClick((int)screenPixels.X, (int)screenPixels.Y);
             }
         }
+        void OnKeyDown_Command(KeyButton button)
+        {
+            SetKeyboardActive(false);
+            SendCommand(button.key);
+        }
+        void SendCommand(string command)
+        {
+            SCore.Instance.RawCommandQueue.Add(command);
+        }
 
         public void SetKeyboardActive(bool enable = true)
         {
             //reset init
             ToggleKeys(false);
             ToggleKeyboardPage(false);
-            keyboardToggleButton.enabled = enable;
+            toggleKeyboardButton.enabled = enable;
         }
         //For block player to touch & tap
         public void ToggleKeyboardPage(bool toggle)
         {
             //enable
+            toggleKeyboardButton.opacityInOut.SetTarget(toggle ? 1f : config.Opacity);
+
             if (toggle)
             {
                 if (Game1.activeClickableMenu == null)
@@ -201,18 +254,19 @@ namespace VirtualKeyboard
         public void ToggleKeys(bool toggle)
         {
             this.isShowKeys = toggle;
-            keyboardToggleButton.opacity = isShowKeys ? 1f : 0.3f;
+
             foreach (var button in keys)
             {
-                if (button != keyboardToggleButton)
+                if (button != toggleKeyboardButton)
                 {
                     button.enabled = isShowKeys;
                 }
             }
         }
-        KeyButton AddButton(SButton key, string label, Action<KeyButton> callback, int horizonLayout = 0)
+        KeyButton AddButton(string key, string label, Action<KeyButton> callback, int horizonLayout)
         {
             var keyButton = new KeyButton(key, label, callback);
+            keyButton.enabled = false;
             keyButton.buttonHorizonLayout = horizonLayout;
 
             if (!keysLookup.ContainsKey(horizonLayout))
