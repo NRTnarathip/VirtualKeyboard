@@ -1,8 +1,11 @@
-﻿namespace VirtualKeyboard
+﻿using Microsoft.Xna.Framework;
+
+namespace VirtualKeyboard
 {
     public class KeyboardConfig
     {
-        public int Size { get; set; } = 100;
+        public Vector2 Position { get; set; } = new Vector2(60, 20);
+        public float Size { get; set; } = 90f;
         public float Opacity { get; internal set; } = .7f;
         public string[] Layout1 { get; set; } = new string[] { "I", "P" };
         public string[] Layout2 { get; set; } = new string[] { "Console:openconsole" };

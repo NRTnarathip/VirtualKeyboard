@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework.Graphics;
+﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewModdingAPI.Framework;
@@ -23,17 +24,18 @@ namespace VirtualKeyboard
             var toggleTexture = Helper.ModContent.Load<Texture2D>("assets/togglebutton.png");
             Helper.Events.Display.Rendered += OnRendered;
             Helper.Events.GameLoop.UpdateTicked += OnGameUpdateTicked;
+            Helper.Events.GameLoop.GameLaunched += GameLoop_GameLaunched;
+
             Helper.Events.Input.ButtonPressed += OnButtonPressed;
             Helper.Events.Input.ButtonReleased += OnButtonReleased;
-            Helper.Events.GameLoop.GameLaunched += GameLoop_GameLaunched;
+            Helper.Events.Input.CursorMoved += OnCursorMoved;
         }
 
-        private void OnGameUpdateTicked(object? sender, UpdateTickedEventArgs e)
+        void OnGameUpdateTicked(object? sender, UpdateTickedEventArgs e)
         {
             if (isDontRenderThisFrame() == false)
                 refreshAllButtonPosition();
         }
-
         void GameLoop_GameLaunched(object? sender, GameLaunchedEventArgs e)
         {
             config = this.Helper.ReadConfig<KeyboardConfig>();
@@ -43,8 +45,9 @@ namespace VirtualKeyboard
             toggleKeyboardButton = AddButton("", "Keyboard", OnKeyDown_ToggleKeyboard, 0);
             toggleKeyboardButton.onKeyUp = OnKeyUp_ToggleKeyboard;
             toggleKeyboardButton.SetIcon("assets/togglebutton.png");
-            toggleKeyboardButton.SetSize(config.Size);
+            toggleKeyboardButton.SetSize((int)config.Size);
             toggleKeyboardButton.opacityInOut = new(0f, 0f, .1f);
+            SetKeyboardPosition(config.Position);
 
             //init keys
             AddButtons(config.Layout1, 1);
@@ -57,52 +60,6 @@ namespace VirtualKeyboard
             ToggleKeyboardPage(false);
 
             ItemSpawnerPatch.InitOnGameLaunched();
-
-        }
-        void refreshAllButtonPosition()
-        {
-            const int buttonGapX = 20;
-            const int buttonGapY = 12;
-            var startX = Toolbar.toolbarWidth + 20;
-            var startY = 20;
-            var lastPosY = startY;
-            foreach (var buttonLayoutPair in keysLookup)
-            {
-                var layoutHorizon = buttonLayoutPair.Key;
-                var buttons = buttonLayoutPair.Value;
-                var lastPosX = startX;
-                foreach (var button in buttonLayoutPair.Value)
-                {
-                    button.bounds.X = lastPosX;
-                    button.bounds.Y = lastPosY;
-
-                    lastPosX += button.bounds.Width + buttonGapX;
-                }
-                lastPosY += buttons[0].bounds.Height + buttonGapY;
-            }
-        }
-
-        bool isDontRenderThisFrame()
-        {
-            //render alway
-            TitleMenu titleMenu = Game1.activeClickableMenu as TitleMenu;
-            if (titleMenu != null)
-            {
-                //Improve Skip Load Screen
-                if (titleMenu.birds.Count > 0)
-                {
-                    titleMenu.skipToTitleButtons();
-                }
-
-                //check if it's on customize character, so we dont need render
-                if (TitleMenu.subMenu != null)
-                    return true;
-                return false;
-            }
-
-            //dont render when active menu & player not ready
-            bool dontRender = !Context.IsPlayerFree && Game1.activeClickableMenu?.GetType() != typeof(KeyboardPage);
-            return dontRender;
         }
 
         DateTime lastRender = DateTime.Now;
@@ -124,7 +81,6 @@ namespace VirtualKeyboard
                     SetKeyboardActive(true);
             }
 
-
             foreach (var buttonLayoutPair in keysLookup)
             {
                 var layoutHorizon = buttonLayoutPair.Key;
@@ -138,7 +94,48 @@ namespace VirtualKeyboard
                 }
             }
         }
+        bool isDontRenderThisFrame()
+        {
+            //render alway
+            TitleMenu titleMenu = Game1.activeClickableMenu as TitleMenu;
+            if (titleMenu != null)
+            {
+                //Improve Skip Load Screen
+                if (titleMenu.birds.Count > 0)
+                    titleMenu.skipToTitleButtons();
 
+                //check if it's on customize character, so we dont need render
+                if (TitleMenu.subMenu != null)
+                    return true;
+                return false;
+            }
+
+            //dont render when active menu & player not ready
+            return !Context.IsPlayerFree && Game1.activeClickableMenu?.GetType() != typeof(KeyboardPage);
+        }
+
+        void refreshAllButtonPosition()
+        {
+            const int buttonGapX = 20;
+            const int buttonGapY = 12;
+            var startX = (int)config.Position.X;
+            var startY = (int)config.Position.Y;
+            var lastPosY = startY;
+            foreach (var buttonLayoutPair in keysLookup)
+            {
+                var layoutHorizon = buttonLayoutPair.Key;
+                var buttons = buttonLayoutPair.Value;
+                var lastPosX = startX;
+                foreach (var button in buttonLayoutPair.Value)
+                {
+                    button.bounds.X = lastPosX;
+                    button.bounds.Y = lastPosY;
+
+                    lastPosX += button.bounds.Width + buttonGapX;
+                }
+                lastPosY += buttons[0].bounds.Height + buttonGapY;
+            }
+        }
         void AddButtons(string[] keys, int layout)
         {
             foreach (var keyString in keys)
@@ -155,28 +152,69 @@ namespace VirtualKeyboard
                 }
             }
         }
+        //bool isShowKeysHold = false;
+        DateTime _lastKeyDownToggleKeyboard;
+        bool isMoveKeyboard = false;
+        void OnCursorMoved(object? sender, CursorMovedEventArgs e)
+        {
+            var now = DateTime.Now;
+            var offset = now - _lastKeyDownToggleKeyboard;
+            var pos = e.NewPosition.ScreenPixels;
+            if (toggleKeyboardButton.isHeldDown && offset.TotalMilliseconds >= 300)
+            {
+                //set po with center icon = 
+                var iconSize = toggleKeyboardButton.bounds.Size;
+                var posCenter = new Vector2(pos.X - iconSize.X / 2f, pos.Y - iconSize.Y / 2f);
+                SetKeyboardPosition(posCenter);
+                isMoveKeyboard = true;
+            }
+        }
+        bool isNeedToSaveConfig = false;
+        void SetKeyboardPosition(Vector2 pos)
+        {
+            //protect keyboard overflow
+            const int minPadding = 10;
+            var screenSize = Game1.viewport.Size;
+            var screenSizeMax = new Vector2(screenSize.Width - minPadding, screenSize.Height - minPadding);
+
+            //Left Top Pivot
+            var iconSize = toggleKeyboardButton.bounds.Size;
+
+            if (pos.X < minPadding)
+                pos.X = minPadding;
+            else if (pos.X + iconSize.X > screenSizeMax.X)
+                pos.X = screenSizeMax.X - iconSize.X;
+
+            if (pos.Y < minPadding)
+                pos.Y = minPadding;
+            else if (pos.Y + iconSize.Y > screenSizeMax.Y)
+                pos.Y = screenSizeMax.Y - iconSize.Y;
+
+            //Right Bottom Pivot
+            config.Position = pos;
+            isNeedToSaveConfig = true;
+        }
         void OnKeyUp_ToggleKeyboard(KeyButton button)
         {
-            if (isShowKeys && !isShowKeysHold)
+            if (!isMoveKeyboard)
             {
-                isShowKeysHold = false;
-                isShowKeys = false;
+                isShowKeys = !isShowKeys;
                 ToggleKeys(isShowKeys);
-                ToggleKeyboardPage(false);
+                ToggleKeyboardPage(isShowKeys);
             }
-            isShowKeysHold = false;
+
+
+            if (isNeedToSaveConfig)
+            {
+                this.Helper.WriteConfig<KeyboardConfig>(config);
+                Console.WriteLine("Done write config.json");
+            }
+            //reset
+            isMoveKeyboard = false;
         }
-        bool isShowKeysHold = false;
         void OnKeyDown_ToggleKeyboard(KeyButton keyButton)
         {
-            //open first frame click
-            if (isShowKeys == false)
-            {
-                isShowKeysHold = true;
-                isShowKeys = true;
-                ToggleKeys(isShowKeys);
-                ToggleKeyboardPage(true);
-            }
+            _lastKeyDownToggleKeyboard = DateTime.Now;
         }
         void OnKeyDown(KeyButton button)
         {
