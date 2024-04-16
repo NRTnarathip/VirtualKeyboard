@@ -85,9 +85,6 @@ namespace VirtualKeyboard
         {
             this.iconPath = iconPath;
             this.icon = ModEntry.Instance.Helper.ModContent.Load<Texture2D>(iconPath);
-            //for 16x16
-            this.bounds.Width = 100;
-            this.bounds.Height = 100;
         }
 
         public override void receiveLeftClick(int x, int y)
@@ -144,6 +141,11 @@ namespace VirtualKeyboard
                         heldDown: false, drawIcon: false,
                         reverseColors: false, bold: true);
             }
+        }
+
+        public void SetSize(int size)
+        {
+            bounds.Width = bounds.Height = size;
         }
     }
 }

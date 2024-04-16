@@ -36,17 +36,17 @@ namespace VirtualKeyboard
 
         void GameLoop_GameLaunched(object? sender, GameLaunchedEventArgs e)
         {
-            var toolPading = Game1.toolbarPaddingX;
+            config = this.Helper.ReadConfig<KeyboardConfig>();
             keysLookup = new();
             keys = new();
 
             toggleKeyboardButton = AddButton("", "Keyboard", OnKeyDown_ToggleKeyboard, 0);
             toggleKeyboardButton.onKeyUp = OnKeyUp_ToggleKeyboard;
             toggleKeyboardButton.SetIcon("assets/togglebutton.png");
+            toggleKeyboardButton.SetSize(config.Size);
             toggleKeyboardButton.opacityInOut = new(0f, 0f, .1f);
 
             //init keys
-            config = this.Helper.ReadConfig<KeyboardConfig>();
             AddButtons(config.Layout1, 1);
             AddButtons(config.Layout2, 2);
             AddButtons(config.Layout3, 3);
