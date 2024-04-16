@@ -57,12 +57,13 @@ namespace VirtualKeyboard
             ToggleKeyboardPage(false);
 
             ItemSpawnerPatch.InitOnGameLaunched();
+
         }
         void refreshAllButtonPosition()
         {
             const int buttonGapX = 20;
             const int buttonGapY = 12;
-            var startX = Toolbar.toolbarWidth;
+            var startX = Toolbar.toolbarWidth + 20;
             var startY = 20;
             var lastPosY = startY;
             foreach (var buttonLayoutPair in keysLookup)
