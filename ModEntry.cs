@@ -203,13 +203,11 @@ namespace VirtualKeyboard
                 ToggleKeyboardPage(isShowKeys);
             }
 
-
             if (isNeedToSaveConfig)
             {
                 this.Helper.WriteConfig<KeyboardConfig>(config);
                 Console.WriteLine("Done write config.json");
             }
-            //reset
             isMoveKeyboard = false;
         }
         void OnKeyDown_ToggleKeyboard(KeyButton keyButton)
