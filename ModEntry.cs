@@ -159,39 +159,41 @@ namespace VirtualKeyboard
         {
             var now = DateTime.Now;
             var offset = now - _lastKeyDownToggleKeyboard;
-            var pos = e.NewPosition.ScreenPixels;
             if (toggleKeyboardButton.isHeldDown && offset.TotalMilliseconds >= 300)
             {
-                //set po with center icon = 
-                var iconSize = toggleKeyboardButton.bounds.Size;
-                var posCenter = new Vector2(pos.X - iconSize.X / 2f, pos.Y - iconSize.Y / 2f);
-                SetKeyboardPosition(posCenter);
+                SetKeyboardPosition(e.NewPosition.GetScaledScreenPixels());
                 isMoveKeyboard = true;
             }
         }
         bool isNeedToSaveConfig = false;
-        void SetKeyboardPosition(Vector2 pos)
+        //screen position
+        void SetKeyboardPosition(Vector2 newScreenPos)
         {
             //protect keyboard overflow
-            const int minPadding = 10;
-            var screenSize = Game1.viewport.Size;
-            var screenSizeMax = new Vector2(screenSize.Width - minPadding, screenSize.Height - minPadding);
+            var posNormalize = new Vector2(newScreenPos.X / Game1.viewport.Width, newScreenPos.Y / Game1.viewport.Height);
+
+            const int minPadding = 20;
+            var uiScreenSize = Game1.uiViewport.Size;
+            var newPos = new Vector2(uiScreenSize.Width * posNormalize.X, uiScreenSize.Height * posNormalize.Y);
+            var uiScreenSizeMax = new Vector2(uiScreenSize.Width - minPadding, uiScreenSize.Height - minPadding);
+            //make pos to center to move
+            newPos.X -= toggleKeyboardButton.bounds.Width / 2f;
+            newPos.Y -= toggleKeyboardButton.bounds.Height / 2f;
 
             //Left Top Pivot
             var iconSize = toggleKeyboardButton.bounds.Size;
+            if (newPos.X < minPadding)
+                newPos.X = minPadding;
+            else if (newPos.X + iconSize.X > uiScreenSizeMax.X)
+                newPos.X = uiScreenSizeMax.X - iconSize.X;
 
-            if (pos.X < minPadding)
-                pos.X = minPadding;
-            else if (pos.X + iconSize.X > screenSizeMax.X)
-                pos.X = screenSizeMax.X - iconSize.X;
-
-            if (pos.Y < minPadding)
-                pos.Y = minPadding;
-            else if (pos.Y + iconSize.Y > screenSizeMax.Y)
-                pos.Y = screenSizeMax.Y - iconSize.Y;
+            if (newPos.Y < minPadding)
+                newPos.Y = minPadding;
+            else if (newPos.Y + iconSize.Y > uiScreenSizeMax.Y)
+                newPos.Y = uiScreenSizeMax.Y - iconSize.Y;
 
             //Right Bottom Pivot
-            config.Position = pos;
+            config.Position = newPos;
             isNeedToSaveConfig = true;
         }
         void OnKeyUp_ToggleKeyboard(KeyButton button)
@@ -205,6 +207,7 @@ namespace VirtualKeyboard
 
             if (isNeedToSaveConfig)
             {
+                isNeedToSaveConfig = false;
                 this.Helper.WriteConfig<KeyboardConfig>(config);
                 Console.WriteLine("Done write config.json");
             }

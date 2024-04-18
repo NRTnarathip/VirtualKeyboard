@@ -1,6 +1,5 @@
 ﻿using HarmonyLib;
 using Microsoft.Xna.Framework;
-using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Menus;
 using System.Reflection;
@@ -28,11 +27,10 @@ namespace VirtualKeyboard
             int width = 800 + IClickableMenu.borderWidth * 2;
             int heighti = 600 + IClickableMenu.borderWidth * 2;
 
-            ModEntry.Instance.Helper.Events.Display.Rendered += OnRendered;
-
             var CJBItemSpawner = AppDomain.CurrentDomain.GetAssemblies().SingleOrDefault(asm => asm.GetName().Name.Contains("CJBItemSpawner"));
             //check if you have mods
-            if (CJBItemSpawner == null) return;
+            if (CJBItemSpawner == null)
+                return;
 
             var ItemMenuWithInventoryType = CJBItemSpawner.GetType("CJBItemSpawner.Framework.ItemMenu");
             var ctor = ItemMenuWithInventoryType.GetConstructors()[0];
@@ -41,7 +39,14 @@ namespace VirtualKeyboard
                 prefix: new(GetType().GetMethod(nameof(PrefixCtor), BindingFlags.NonPublic | BindingFlags.Static)),
                 postfix: new(GetType().GetMethod(nameof(PostfixCtor), BindingFlags.NonPublic | BindingFlags.Static)));
             AndroidLog.Log("Done patching CJBItemSpawner.");
+            ModEntry.Instance.Helper.Events.Input.ButtonPressed += Input_ButtonPressed;
         }
+
+        private void Input_ButtonPressed(object? sender, StardewModdingAPI.Events.ButtonPressedEventArgs e)
+        {
+            Console.WriteLine("SV: on btn press: " + e.Button);
+        }
+
         static Rectangle oldClientBounds;
         static xTile.Dimensions.Rectangle oldViewport;
         static void PrefixCtor()
@@ -55,6 +60,7 @@ namespace VirtualKeyboard
             //Game1.viewport.Height = oldClientBounds.Height / 2 + 150;
 
             //info debug for device resolution: W.2400, H.1080 POCO F3
+
             Game1.viewport.Width = 1300;
             Game1.viewport.Height = 680;
             ModEntry.Instance.Monitor.Log("set temp viewport: height=" + Game1.viewport.Height);
@@ -66,20 +72,6 @@ namespace VirtualKeyboard
             Game1.viewport = oldViewport;
 
             ModEntry.Instance.Monitor.Log("On PostfixCtor ItemMenuWithInventory");
-        }
-
-        private void OnRendered(object? sender, RenderedEventArgs e)
-        {
-            var batch = e.SpriteBatch;
-            var page = Game1.activeClickableMenu;
-            if (page != null)
-            {
-                var pageType = page.GetType();
-                if (pageType.Name == "ItemMenu")
-                {
-
-                }
-            }
         }
     }
 }
