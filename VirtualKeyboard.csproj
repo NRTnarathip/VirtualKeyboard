@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+	  <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -11,27 +12,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Lib.Harmony" Version="2.3.3" />
     <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.1.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="0Harmony">
-      <HintPath>..\..\0Harmony.dll</HintPath>
-    </Reference>
-    <Reference Include="MonoGame.Framework">
-      <HintPath>..\..\assemblies_origin_dll\MonoGame.Framework.dll</HintPath>
-    </Reference>
-    <Reference Include="StardewModdingAPI">
-      <HintPath>..\..\SMAPI Android\SMAPI-3.18.6\SMAPI\bin\Release\StardewModdingAPI.dll</HintPath>
-    </Reference>
     <Reference Include="StardewValley">
       <HintPath>..\..\assemblies_origin_dll\StardewValley.dll</HintPath>
-    </Reference>
-    <Reference Include="StardewValley.GameData">
-      <HintPath>..\..\assemblies_origin_dll\StardewValley.GameData.dll</HintPath>
-    </Reference>
-    <Reference Include="xTile">
-      <HintPath>..\..\assemblies_origin_dll\xTile.dll</HintPath>
     </Reference>
   </ItemGroup>
 
@@ -40,5 +27,9 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="&quot;$(ProjectDir)PostBuild.cmd&quot;" />
+  </Target>
 
 </Project>

@@ -39,12 +39,6 @@ namespace VirtualKeyboard
                 prefix: new(GetType().GetMethod(nameof(PrefixCtor), BindingFlags.NonPublic | BindingFlags.Static)),
                 postfix: new(GetType().GetMethod(nameof(PostfixCtor), BindingFlags.NonPublic | BindingFlags.Static)));
             AndroidLog.Log("Done patching CJBItemSpawner.");
-            ModEntry.Instance.Helper.Events.Input.ButtonPressed += Input_ButtonPressed;
-        }
-
-        private void Input_ButtonPressed(object? sender, StardewModdingAPI.Events.ButtonPressedEventArgs e)
-        {
-            Console.WriteLine("SV: on btn press: " + e.Button);
         }
 
         static Rectangle oldClientBounds;
@@ -55,12 +49,7 @@ namespace VirtualKeyboard
 
             oldClientBounds = Game1.clientBounds;
             oldViewport = Game1.viewport;
-
-            //Game1.viewport.Width = oldClientBounds.Width / 2;
-            //Game1.viewport.Height = oldClientBounds.Height / 2 + 150;
-
             //info debug for device resolution: W.2400, H.1080 POCO F3
-
             Game1.viewport.Width = 1300;
             Game1.viewport.Height = 680;
             ModEntry.Instance.Monitor.Log("set temp viewport: height=" + Game1.viewport.Height);

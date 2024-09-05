@@ -15,8 +15,8 @@ namespace VirtualKeyboard
         Dictionary<int, List<KeyButton>> keysLookup;
         List<KeyButton> keys;
 
-        bool isShowKeys = false;
-        KeyButton toggleKeyboardButton;
+        bool isShowKeyboard = false;
+        KeyButton floatingKeyboard;
         KeyboardConfig config;
         public override void Entry(IModHelper helper)
         {
@@ -26,15 +26,21 @@ namespace VirtualKeyboard
             Helper.Events.GameLoop.UpdateTicked += OnGameUpdateTicked;
             Helper.Events.GameLoop.GameLaunched += GameLoop_GameLaunched;
 
-            Helper.Events.Input.ButtonPressed += OnButtonPressed;
-            Helper.Events.Input.ButtonReleased += OnButtonReleased;
+            Helper.Events.Input.ButtonPressed += OnGame_ButtonPressed;
+            Helper.Events.Input.ButtonReleased += OnGame_ButtonReleased;
             Helper.Events.Input.CursorMoved += OnCursorMoved;
+
+            CommandMobile.Init();
         }
 
         void OnGameUpdateTicked(object? sender, UpdateTickedEventArgs e)
         {
-            if (isDontRenderThisFrame() == false)
+            if (isShouldRenderThisFrame())
+            {
                 refreshAllButtonPosition();
+            }
+
+            TryRestoreBlockInputThisFrame();
         }
         void GameLoop_GameLaunched(object? sender, GameLaunchedEventArgs e)
         {
@@ -42,11 +48,11 @@ namespace VirtualKeyboard
             keysLookup = new();
             keys = new();
 
-            toggleKeyboardButton = AddButton("", "Keyboard", OnKeyDown_ToggleKeyboard, 0);
-            toggleKeyboardButton.onKeyUp = OnKeyUp_ToggleKeyboard;
-            toggleKeyboardButton.SetIcon("assets/togglebutton.png");
-            toggleKeyboardButton.SetSize((int)config.Size);
-            toggleKeyboardButton.opacityInOut = new(0f, 0f, .1f);
+            floatingKeyboard = AddButton("", "Keyboard", OnFloatingKeyboard_KeyDown, 0);
+            floatingKeyboard.onKeyUp = OnFloatingKeyboard_KeyUp;
+            floatingKeyboard.SetIcon("assets/togglebutton.png");
+            floatingKeyboard.SetSize((int)config.Size);
+            floatingKeyboard.opacityInOut = new(0f, 0f, .1f);
             SetKeyboardPosition(config.Position);
 
             //init keys
@@ -63,35 +69,51 @@ namespace VirtualKeyboard
         }
 
         DateTime lastRender = DateTime.Now;
+
+        void TryRestoreBlockInputThisFrame()
+        {
+            if (isBlockPlayerInputThisFrame)
+            {
+                blockFrameCountDown--;
+                if (blockFrameCountDown <= 0)
+                {
+                    isBlockPlayerInputThisFrame = false;
+                    SetBlockPlayerInput(false);
+                }
+            }
+        }
+
         void OnRendered(object? sender, RenderedEventArgs e)
         {
             var now = DateTime.Now;
             var deltaTime = now - lastRender;
             lastRender = now;
 
+
+
             if (isDontRenderThisFrame())
             {
-                if (toggleKeyboardButton.enabled)
+                if (floatingKeyboard.enabled)
                     SetKeyboardActive(false);
-                return;
             }
             else
             {
-                if (!toggleKeyboardButton.enabled)
+                if (!floatingKeyboard.enabled)
                     SetKeyboardActive(true);
-            }
 
-            foreach (var buttonLayoutPair in keysLookup)
-            {
-                var layoutHorizon = buttonLayoutPair.Key;
-                var buttons = buttonLayoutPair.Value;
-                foreach (var button in buttonLayoutPair.Value)
+                foreach (var buttonLayoutPair in keysLookup)
                 {
-                    if (!button.enabled)
-                        continue;
-                    //update
-                    button.Draw(e.SpriteBatch, deltaTime);
+                    var layoutHorizon = buttonLayoutPair.Key;
+                    var buttons = buttonLayoutPair.Value;
+                    foreach (var button in buttonLayoutPair.Value)
+                    {
+                        if (!button.enabled)
+                            continue;
+                        //update
+                        button.Draw(e.SpriteBatch, deltaTime);
+                    }
                 }
+
             }
         }
         bool isDontRenderThisFrame()
@@ -113,6 +135,7 @@ namespace VirtualKeyboard
             //dont render when active menu & player not ready
             return !Context.IsPlayerFree && Game1.activeClickableMenu?.GetType() != typeof(KeyboardPage);
         }
+        bool isShouldRenderThisFrame() => !isDontRenderThisFrame();
 
         void refreshAllButtonPosition()
         {
@@ -144,11 +167,11 @@ namespace VirtualKeyboard
                 bool isCommand = data.Length > 1;
                 if (isCommand)
                 {
-                    AddButton(data[1], data[0], OnKeyDown_Command, layout);
+                    AddButton(data[1], data[0], OnKeyButtonDown_Command, layout);
                 }
                 else
                 {
-                    AddButton(keyString, keyString, OnKeyDown, layout);
+                    AddButton(keyString, keyString, OnKeyButtonDown, layout);
                 }
             }
         }
@@ -159,7 +182,8 @@ namespace VirtualKeyboard
         {
             var now = DateTime.Now;
             var offset = now - _lastKeyDownToggleKeyboard;
-            if (toggleKeyboardButton.isHeldDown && offset.TotalMilliseconds >= 300)
+            const int startDragTime = 150;
+            if (floatingKeyboard.isHeldDown && offset.TotalMilliseconds >= startDragTime)
             {
                 SetKeyboardPosition(e.NewPosition.GetScaledScreenPixels());
                 isMoveKeyboard = true;
@@ -177,11 +201,11 @@ namespace VirtualKeyboard
             var newPos = new Vector2(uiScreenSize.Width * posNormalize.X, uiScreenSize.Height * posNormalize.Y);
             var uiScreenSizeMax = new Vector2(uiScreenSize.Width - minPadding, uiScreenSize.Height - minPadding);
             //make pos to center to move
-            newPos.X -= toggleKeyboardButton.bounds.Width / 2f;
-            newPos.Y -= toggleKeyboardButton.bounds.Height / 2f;
+            newPos.X -= floatingKeyboard.bounds.Width / 2f;
+            newPos.Y -= floatingKeyboard.bounds.Height / 2f;
 
             //Left Top Pivot
-            var iconSize = toggleKeyboardButton.bounds.Size;
+            var iconSize = floatingKeyboard.bounds.Size;
             if (newPos.X < minPadding)
                 newPos.X = minPadding;
             else if (newPos.X + iconSize.X > uiScreenSizeMax.X)
@@ -196,49 +220,70 @@ namespace VirtualKeyboard
             config.Position = newPos;
             isNeedToSaveConfig = true;
         }
-        void OnKeyUp_ToggleKeyboard(KeyButton button)
+        void OnFloatingKeyboard_KeyUp(KeyButton button)
         {
             if (!isMoveKeyboard)
             {
-                isShowKeys = !isShowKeys;
-                ToggleKeys(isShowKeys);
-                ToggleKeyboardPage(isShowKeys);
+                isShowKeyboard = !isShowKeyboard;
+                ToggleKeys(isShowKeyboard);
+                ToggleKeyboardPage(isShowKeyboard);
             }
 
             if (isNeedToSaveConfig)
             {
                 isNeedToSaveConfig = false;
-                this.Helper.WriteConfig<KeyboardConfig>(config);
-                Console.WriteLine("Done write config.json");
+                Helper.WriteConfig(config);
             }
             isMoveKeyboard = false;
+            if (!isBlockPlayerInputThisFrame)
+                SetBlockPlayerInput(false);
         }
-        void OnKeyDown_ToggleKeyboard(KeyButton keyButton)
+        void OnFloatingKeyboard_KeyDown(KeyButton keyButton)
         {
             _lastKeyDownToggleKeyboard = DateTime.Now;
+            SetBlockPlayerInput(true);
         }
-        void OnKeyDown(KeyButton button)
+        void OnKeyButtonDown(KeyButton button)
         {
             //disable Active Clickable Menu first
             //mod CJB Item Spawner need IsPlayerFree == true;
+            SetBlockPlayerInputThisFrame();
             SetKeyboardActive(false);
+
             var input = Game1.input as SInputState;
             var sbutton = (SButton)Enum.Parse(typeof(SButton), button.key);
             input.OverrideButton(sbutton, true);
         }
-        void OnButtonPressed(object? sender, ButtonPressedEventArgs e)
+        void OnKeyButtonDown_Command(KeyButton button)
+        {
+            SetBlockPlayerInputThisFrame();
+            SetKeyboardActive(false);
+
+            SendCommand(button.key);
+        }
+        void OnGame_ButtonPressed(object? sender, ButtonPressedEventArgs e)
         {
             //process when Button is Mouse
             if (e.Button != SButton.MouseLeft)
                 return;
 
             var screenPixels = Utility.ModifyCoordinatesForUIScale(e.Cursor.ScreenPixels);
+            bool isAnyClick = false;
             foreach (var btn in keys)
             {
                 btn.receiveLeftClick((int)screenPixels.X, (int)screenPixels.Y);
+                if (btn.isHeldDown)
+                    isAnyClick = true;
+            }
+
+            //close keyboard when click any background
+            if (!isAnyClick & isShowKeyboard)
+            {
+                SetKeyboardActive(false);
+                SetBlockPlayerInputThisFrame();
             }
         }
-        void OnButtonReleased(object? sender, ButtonReleasedEventArgs e)
+        void OnGame_ButtonReleased(object? sender, ButtonReleasedEventArgs e)
         {
             if (e.Button != SButton.MouseLeft)
                 return;
@@ -248,11 +293,6 @@ namespace VirtualKeyboard
             {
                 btn.releaseLeftClick((int)screenPixels.X, (int)screenPixels.Y);
             }
-        }
-        void OnKeyDown_Command(KeyButton button)
-        {
-            SetKeyboardActive(false);
-            SendCommand(button.key);
         }
         void SendCommand(string command)
         {
@@ -264,13 +304,13 @@ namespace VirtualKeyboard
             //reset init
             ToggleKeys(false);
             ToggleKeyboardPage(false);
-            toggleKeyboardButton.enabled = enable;
+            floatingKeyboard.enabled = enable;
         }
         //For block player to touch & tap
         public void ToggleKeyboardPage(bool toggle)
         {
             //enable
-            toggleKeyboardButton.opacityInOut.SetTarget(toggle ? 1f : config.Opacity);
+            floatingKeyboard.opacityInOut.SetTarget(toggle ? 1f : config.Opacity);
 
             if (toggle)
             {
@@ -284,22 +324,24 @@ namespace VirtualKeyboard
             }
 
             //disable
-            if (Game1.activeClickableMenu?.GetType() == typeof(KeyboardPage))
+            if (IsCurrentGameMenuKeyboardPage)
             {
                 Game1.activeClickableMenu = null;
+                if (!isBlockPlayerInputThisFrame)
+                    SetBlockPlayerInput(false);
             }
-
         }
+        public bool IsCurrentGameMenuKeyboardPage => Game1.activeClickableMenu?.GetType() == typeof(KeyboardPage);
         //set visable keys
         public void ToggleKeys(bool toggle)
         {
-            this.isShowKeys = toggle;
+            this.isShowKeyboard = toggle;
 
             foreach (var button in keys)
             {
-                if (button != toggleKeyboardButton)
+                if (button != floatingKeyboard)
                 {
-                    button.enabled = isShowKeys;
+                    button.enabled = isShowKeyboard;
                 }
             }
         }
@@ -319,6 +361,19 @@ namespace VirtualKeyboard
         void OnCloseKeyboardPage(IClickableMenu menu)
         {
             ToggleKeyboardPage(false);
+        }
+
+        static void SetBlockPlayerInput(bool isBlock)
+        {
+            Game1.freezeControls = isBlock;
+        }
+        static bool isBlockPlayerInputThisFrame = false;
+        static int blockFrameCountDown;
+        static void SetBlockPlayerInputThisFrame()
+        {
+            blockFrameCountDown = 10;
+            isBlockPlayerInputThisFrame = true;
+            SetBlockPlayerInput(true);
         }
     }
 }
