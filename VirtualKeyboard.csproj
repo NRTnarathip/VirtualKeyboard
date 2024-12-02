@@ -1,7 +1,7 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 	  <LangVersion>latest</LangVersion>
@@ -13,12 +13,23 @@
 
   <ItemGroup>
     <PackageReference Include="Lib.Harmony" Version="2.3.3" />
-    <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.1.1" />
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="MonoGame.Framework">
+      <HintPath>..\..\Apks Latest File\assemblies\out\MonoGame.Framework.dll</HintPath>
+    </Reference>
+    <Reference Include="StardewModdingAPI">
+      <HintPath>..\..\..\SMAPI-Android-1.6\src\SMAPI\bin\ARM64\Android Release\StardewModdingAPI.dll</HintPath>
+    </Reference>
     <Reference Include="StardewValley">
-      <HintPath>..\..\assemblies_origin_dll\StardewValley.dll</HintPath>
+      <HintPath>..\..\Apks Latest File\assemblies\out\StardewValley.dll</HintPath>
+    </Reference>
+    <Reference Include="StardewValley.GameData">
+      <HintPath>..\..\Apks Latest File\assemblies\out\StardewValley.GameData.dll</HintPath>
+    </Reference>
+    <Reference Include="xTile">
+      <HintPath>..\..\..\SMAPI-Android-1.6\src\SMAPI\bin\ARM64\Android Release\xTile.dll</HintPath>
     </Reference>
   </ItemGroup>
 

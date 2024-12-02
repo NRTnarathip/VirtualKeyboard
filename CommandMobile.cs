@@ -1,4 +1,5 @@
 ﻿using Microsoft.Xna.Framework.Input;
+using StardewModdingAPI.Mobile;
 
 namespace VirtualKeyboard;
 
@@ -27,20 +28,8 @@ internal class CommandMobile
             var result = await KeyboardInput.Show(MessageBoxTitle, MessageBoxDescription, "", false);
             if (result != null)
             {
-                var split = result.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (split.Length > 0)
-                {
-                    SendCMD(split[0], split.Length >= 2 ? split[1..] : []);
-                }
-                else
-                {
-                    SendCMD(result, []);
-                }
+                MobileConsoleTool.WriteLine(result);
             }
         });
-    }
-    void SendCMD(string cmd, string[] args)
-    {
-        ModEntry.Instance.Helper.ConsoleCommands.Trigger(cmd, args);
     }
 }

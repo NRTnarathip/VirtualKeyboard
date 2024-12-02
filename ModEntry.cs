@@ -4,6 +4,7 @@ using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewModdingAPI.Framework;
 using StardewModdingAPI.Framework.Input;
+using StardewModdingAPI.Mobile;
 using StardewValley;
 using StardewValley.Menus;
 
@@ -12,8 +13,8 @@ namespace VirtualKeyboard;
 public class ModEntry : Mod
 {
     public static ModEntry Instance { get; private set; }
-    Dictionary<int, List<KeyButton>> keysLookup;
-    List<KeyButton> keys;
+    Dictionary<int, List<KeyButton>> keysLookup = new();
+    List<KeyButton> keys = new();
 
     bool isShowKeyboard = false;
     KeyButton floatingKeyboard;
@@ -21,20 +22,20 @@ public class ModEntry : Mod
     public override void Entry(IModHelper helper)
     {
         Instance = this;
-        var toggleTexture = Helper.ModContent.Load<Texture2D>("assets/togglebutton.png");
-        Helper.Events.Display.Rendered += OnRendered;
+
+
         Helper.Events.GameLoop.UpdateTicked += OnGameUpdateTicked;
-        Helper.Events.GameLoop.GameLaunched += GameLoop_GameLaunched;
-
-        Helper.Events.Input.ButtonPressed += OnGame_ButtonPressed;
-        Helper.Events.Input.ButtonReleased += OnGame_ButtonReleased;
-        Helper.Events.Input.CursorMoved += OnCursorMoved;
-
-        CommandMobile.Init();
     }
 
     void OnGameUpdateTicked(object? sender, UpdateTickedEventArgs e)
     {
+        //check if game loaded asset
+        if (Game1.dialogueFont == null)
+            return;
+
+        if (floatingKeyboard == null)
+            InitKeyboard();
+
         if (isShouldRenderThisFrame())
         {
             refreshAllButtonPosition();
@@ -42,12 +43,13 @@ public class ModEntry : Mod
 
         TryRestoreBlockInputThisFrame();
     }
-    void GameLoop_GameLaunched(object? sender, GameLaunchedEventArgs e)
+    void InitKeyboard()
     {
-        config = this.Helper.ReadConfig<KeyboardConfig>();
-        keysLookup = new();
-        keys = new();
+        if (floatingKeyboard != null)
+            return;
 
+        //setup
+        config = this.Helper.ReadConfig<KeyboardConfig>();
         floatingKeyboard = AddButton("", "Keyboard", OnFloatingKeyboard_KeyDown, 0);
         floatingKeyboard.onKeyUp = OnFloatingKeyboard_KeyUp;
         floatingKeyboard.SetIcon("assets/togglebutton.png");
@@ -64,6 +66,14 @@ public class ModEntry : Mod
         //set visable keys
         ToggleKeys(false);
         ToggleKeyboardPage(false);
+
+
+        CommandMobile.Init();
+        Helper.Events.Display.Rendered += OnRendered;
+        Helper.Events.Input.ButtonPressed += OnGame_ButtonPressed;
+        Helper.Events.Input.ButtonReleased += OnGame_ButtonReleased;
+        Helper.Events.Input.CursorMoved += OnCursorMoved;
+        Console.WriteLine("Done init keyboard");
     }
 
     DateTime lastRender = DateTime.Now;
@@ -83,35 +93,42 @@ public class ModEntry : Mod
 
     void OnRendered(object? sender, RenderedEventArgs e)
     {
-        var now = DateTime.Now;
-        var deltaTime = now - lastRender;
-        lastRender = now;
-
-
-
-        if (isDontRenderThisFrame())
+        try
         {
-            if (floatingKeyboard.enabled)
-                SetKeyboardActive(false);
-        }
-        else
-        {
-            if (!floatingKeyboard.enabled)
-                SetKeyboardActive(true);
 
-            foreach (var buttonLayoutPair in keysLookup)
+            var now = DateTime.Now;
+            var deltaTime = now - lastRender;
+            lastRender = now;
+
+            if (isDontRenderThisFrame())
             {
-                var layoutHorizon = buttonLayoutPair.Key;
-                var buttons = buttonLayoutPair.Value;
-                foreach (var button in buttonLayoutPair.Value)
-                {
-                    if (!button.enabled)
-                        continue;
-                    //update
-                    button.Draw(e.SpriteBatch, deltaTime);
-                }
+                Console.WriteLine("skip render");
+                if (floatingKeyboard.enabled)
+                    SetKeyboardActive(false);
             }
+            else
+            {
+                if (!floatingKeyboard.enabled)
+                    SetKeyboardActive(true);
 
+                foreach (var buttonLayoutPair in keysLookup)
+                {
+                    var layoutHorizon = buttonLayoutPair.Key;
+                    var buttons = buttonLayoutPair.Value;
+                    foreach (var button in buttons)
+                    {
+                        if (!button.enabled)
+                            continue;
+                        //update
+                        button.Draw(e.SpriteBatch, deltaTime);
+                    }
+                }
+
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
         }
     }
     bool isDontRenderThisFrame()
@@ -137,24 +154,32 @@ public class ModEntry : Mod
 
     void refreshAllButtonPosition()
     {
-        const int buttonGapX = 20;
-        const int buttonGapY = 12;
-        var startX = (int)config.Position.X;
-        var startY = (int)config.Position.Y;
-        var lastPosY = startY;
-        foreach (var buttonLayoutPair in keysLookup)
+        try
         {
-            var layoutHorizon = buttonLayoutPair.Key;
-            var buttons = buttonLayoutPair.Value;
-            var lastPosX = startX;
-            foreach (var button in buttonLayoutPair.Value)
+            const int buttonGapX = 20;
+            const int buttonGapY = 12;
+            var startX = (int)config.Position.X;
+            var startY = (int)config.Position.Y;
+            var lastPosY = startY;
+            foreach (var buttonLayoutPair in keysLookup)
             {
-                button.bounds.X = lastPosX;
-                button.bounds.Y = lastPosY;
+                var layoutHorizon = buttonLayoutPair.Key;
+                var buttons = buttonLayoutPair.Value;
+                var lastPosX = startX;
 
-                lastPosX += button.bounds.Width + buttonGapX;
+                foreach (var button in buttonLayoutPair.Value)
+                {
+                    button.bounds.X = lastPosX;
+                    button.bounds.Y = lastPosY;
+
+                    lastPosX += button.bounds.Width + buttonGapX;
+                }
+                lastPosY += buttons[0].bounds.Height + buttonGapY;
             }
-            lastPosY += buttons[0].bounds.Height + buttonGapY;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
         }
     }
     void AddButtons(string[] keys, int layout)
@@ -248,9 +273,8 @@ public class ModEntry : Mod
         SetBlockPlayerInputThisFrame();
         SetKeyboardActive(false);
 
-        var input = Game1.input as SInputState;
-        var sbutton = (SButton)Enum.Parse(typeof(SButton), button.key);
-        input.OverrideButton(sbutton, true);
+        var sButton = (SButton)Enum.Parse(typeof(SButton), button.key);
+        MobileInputTool.OverrideButton(sButton, true);
     }
     void OnKeyButtonDown_Command(KeyButton button)
     {
@@ -294,7 +318,9 @@ public class ModEntry : Mod
     }
     void SendCommand(string command)
     {
-        SCore.Instance.RawCommandQueue.Add(command);
+        //SCore.Instance.RawCommandQueue.Add(command);
+        MobileConsoleTool.WriteLine(command);
+        Console.WriteLine("on write line: " + command);
     }
 
     public void SetKeyboardActive(bool enable = true)
