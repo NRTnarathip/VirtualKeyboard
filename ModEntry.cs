@@ -70,10 +70,16 @@ public class ModEntry : Mod
 
         CommandMobile.Init();
         Helper.Events.Display.Rendered += OnRendered;
+        Helper.Events.Display.RenderedHud += Display_RenderedHud; ;
         Helper.Events.Input.ButtonPressed += OnGame_ButtonPressed;
         Helper.Events.Input.ButtonReleased += OnGame_ButtonReleased;
         Helper.Events.Input.CursorMoved += OnCursorMoved;
         Console.WriteLine("Done init keyboard");
+    }
+
+    private void Display_RenderedHud(object? sender, RenderedHudEventArgs e)
+    {
+        RenderKeyboard(e.SpriteBatch);
     }
 
     DateTime lastRender = DateTime.Now;
@@ -90,19 +96,20 @@ public class ModEntry : Mod
             }
         }
     }
-
     void OnRendered(object? sender, RenderedEventArgs e)
+    {
+    }
+
+    void RenderKeyboard(SpriteBatch b)
     {
         try
         {
-
             var now = DateTime.Now;
             var deltaTime = now - lastRender;
             lastRender = now;
 
             if (isDontRenderThisFrame())
             {
-                Console.WriteLine("skip render");
                 if (floatingKeyboard.enabled)
                     SetKeyboardActive(false);
             }
@@ -120,10 +127,9 @@ public class ModEntry : Mod
                         if (!button.enabled)
                             continue;
                         //update
-                        button.Draw(e.SpriteBatch, deltaTime);
+                        button.Draw(b, deltaTime);
                     }
                 }
-
             }
         }
         catch (Exception ex)
@@ -318,9 +324,7 @@ public class ModEntry : Mod
     }
     void SendCommand(string command)
     {
-        //SCore.Instance.RawCommandQueue.Add(command);
         MobileConsoleTool.WriteLine(command);
-        Console.WriteLine("on write line: " + command);
     }
 
     public void SetKeyboardActive(bool enable = true)
