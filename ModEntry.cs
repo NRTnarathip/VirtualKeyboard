@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using HarmonyLib;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
@@ -6,7 +7,11 @@ using StardewModdingAPI.Framework;
 using StardewModdingAPI.Framework.Input;
 using StardewModdingAPI.Mobile;
 using StardewValley;
+using StardewValley.GameData.HomeRenovations;
 using StardewValley.Menus;
+using StardewValley.Mods;
+using System.Reflection;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace VirtualKeyboard;
 
@@ -19,12 +24,16 @@ public class ModEntry : Mod
     bool isShowKeyboard = false;
     KeyButton floatingKeyboard;
     KeyboardConfig config;
+
+
     public override void Entry(IModHelper helper)
     {
         Instance = this;
 
-
         Helper.Events.GameLoop.UpdateTicked += OnGameUpdateTicked;
+
+        var harmony = new Harmony(typeof(ModEntry).FullName);
+        harmony.PatchAll();
     }
 
     void OnGameUpdateTicked(object? sender, UpdateTickedEventArgs e)
@@ -69,21 +78,74 @@ public class ModEntry : Mod
 
 
         CommandMobile.Init();
-        Helper.Events.Display.Rendered += OnRendered;
-        Helper.Events.Display.RenderedHud += Display_RenderedHud; ;
         Helper.Events.Input.ButtonPressed += OnGame_ButtonPressed;
         Helper.Events.Input.ButtonReleased += OnGame_ButtonReleased;
         Helper.Events.Input.CursorMoved += OnCursorMoved;
+        Helper.Events.Display.RenderedStep += Display_RenderedStep;
+
+        try
+        {
+            var width = Game1.mouseCursors.Width;
+            var height = Game1.mouseCursors.Height;
+            var cursorColors = new Color[width * height];
+            Game1.mouseCursors.GetData(cursorColors);
+            Console.WriteLine("successfully get mouseCursors data, length: " + cursorColors.Length);
+
+            Console.WriteLine("done save file");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+
+
         Console.WriteLine("Done init keyboard");
     }
 
-    private void Display_RenderedHud(object? sender, RenderedHudEventArgs e)
+    private void Display_RenderedStep(object? sender, RenderedStepEventArgs e)
     {
-        RenderKeyboard(e.SpriteBatch);
+        switch (e.Step)
+        {
+            case RenderSteps.Overlays:
+                RenderKeyboard(e.SpriteBatch);
+                break;
+            default:
+                break;
+        }
     }
 
-    DateTime lastRender = DateTime.Now;
+    public static bool IsCompressedFormat(SurfaceFormat format)
+    {
+        switch (format)
+        {
+            case SurfaceFormat.Dxt1:
+            case SurfaceFormat.Dxt3:
+            case SurfaceFormat.Dxt5:
+            case SurfaceFormat.Dxt1SRgb:
+            case SurfaceFormat.Dxt3SRgb:
+            case SurfaceFormat.Dxt5SRgb:
+            case SurfaceFormat.RgbPvrtc2Bpp:
+            case SurfaceFormat.RgbPvrtc4Bpp:
+            case SurfaceFormat.RgbaPvrtc2Bpp:
+            case SurfaceFormat.RgbaPvrtc4Bpp:
+            case SurfaceFormat.RgbEtc1:
+            case SurfaceFormat.Dxt1a:
+            case SurfaceFormat.RgbaAtcExplicitAlpha:
+            case SurfaceFormat.RgbaAtcInterpolatedAlpha:
+            case SurfaceFormat.Rgb8Etc2:
+            case SurfaceFormat.Srgb8Etc2:
+            case SurfaceFormat.Rgb8A1Etc2:
+            case SurfaceFormat.Srgb8A1Etc2:
+            case SurfaceFormat.Rgba8Etc2:
+            case SurfaceFormat.SRgb8A8Etc2:
+                return true;
+            default:
+                return false;
+        }
+    }
 
+
+    DateTime lastRender = DateTime.Now;
     void TryRestoreBlockInputThisFrame()
     {
         if (isBlockPlayerInputThisFrame)
@@ -96,10 +158,6 @@ public class ModEntry : Mod
             }
         }
     }
-    void OnRendered(object? sender, RenderedEventArgs e)
-    {
-    }
-
     void RenderKeyboard(SpriteBatch b)
     {
         try
