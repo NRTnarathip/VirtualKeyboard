@@ -83,22 +83,6 @@ public class ModEntry : Mod
         Helper.Events.Input.CursorMoved += OnCursorMoved;
         Helper.Events.Display.RenderedStep += Display_RenderedStep;
 
-        try
-        {
-            var width = Game1.mouseCursors.Width;
-            var height = Game1.mouseCursors.Height;
-            var cursorColors = new Color[width * height];
-            Game1.mouseCursors.GetData(cursorColors);
-            Console.WriteLine("successfully get mouseCursors data, length: " + cursorColors.Length);
-
-            Console.WriteLine("done save file");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine(ex);
-        }
-
-
         Console.WriteLine("Done init keyboard");
     }
 
